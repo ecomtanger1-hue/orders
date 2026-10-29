@@ -1,0 +1,141 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global helper functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn() && request.auth.token.email == 'ecomtanger1@gmail.com';
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isBootstrappedAdmin() ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isManagerOrAbove() {
+      return isAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserRole() == 'manager'
+      );
+    }
+
+    function isStaffOrAbove() {
+      return isManagerOrAbove() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserRole() == 'staff'
+      );
+    }
+
+    function isTeamMember() {
+      return isSignedIn();
+    }
+
+    // Validators
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+        data.keys().hasOnly(['uid', 'email', 'role', 'displayName', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() <= 150 &&
+        data.role in ['admin', 'manager', 'staff', 'viewer'];
+    }
+
+    function isValidInventory(data) {
+      return data.keys().hasAll(['title', 'costPrice', 'sellingPrice', 'stock', 'status']) &&
+        data.keys().hasOnly(['title', 'sku', 'category', 'condition', 'costPrice', 'sellingPrice', 'stock', 'lowStockThreshold', 'vendorId', 'vendorName', 'listingUrl', 'status', 'fulfillmentType', 'notes', 'isBundle', 'bundleItems', 'batches', 'createdAt', 'updatedAt', 'createdBy']) &&
+        data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+        data.costPrice is number && data.costPrice >= 0 &&
+        data.sellingPrice is number && data.sellingPrice >= 0 &&
+        data.stock is int &&
+        data.status in ['active', 'sold', 'draft', 'out_of_stock', 'reserved', 'archived'] &&
+        (!('isBundle' in data) || data.isBundle is bool) &&
+        (!('bundleItems' in data) || (data.bundleItems is list && data.bundleItems.size() <= 30)) &&
+        (!('batches' in data) || (data.batches is list && data.batches.size() <= 100));
+    }
+
+    function isValidOrder(data) {
+      return data.keys().hasAll(['itemTitle', 'quantity', 'salePrice', 'status', 'date']) &&
+        data.keys().hasOnly(['itemId', 'itemTitle', 'quantity', 'unitCost', 'salePrice', 'shippingCharged', 'shippingCost', 'platformFee', 'totalRevenue', 'totalCost', 'netProfit', 'profitMargin', 'buyerName', 'customerPhone', 'customerAddress', 'googleMapsUrl', 'paymentMethod', 'fulfillmentType', 'carrier', 'trackingNumber', 'status', 'date', 'notes', 'createdAt', 'createdBy']) &&
+        data.itemTitle is string && data.itemTitle.size() > 0 && data.itemTitle.size() <= 200 &&
+        data.quantity is int && data.quantity > 0 &&
+        data.salePrice is number && data.salePrice >= 0 &&
+        data.status in ['new', 'confirmed', 'delivered', 'cancelled', 'completed', 'pending_pickup', 'shipped'] &&
+        data.date is string && data.date.size() <= 50;
+    }
+
+    function isValidVendor(data) {
+      return data.keys().hasAll(['name']) &&
+        data.keys().hasOnly(['name', 'contactPerson', 'email', 'phone', 'website', 'leadTimeDays', 'rating', 'notes', 'createdAt', 'createdBy']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 150;
+    }
+
+    // Admins collection: Used strictly for authorization markers
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId);
+      allow list: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(adminId);
+    }
+
+    // Users collection: RBAC user profiles
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(userId) && isValidUser(request.resource.data) && (
+        isAdmin() ||
+        (request.auth.uid == userId && (
+          (isBootstrappedAdmin() && request.resource.data.role == 'admin') ||
+          request.resource.data.role in ['manager', 'staff', 'viewer']
+        ))
+      );
+      allow update: if isSignedIn() && isValidId(userId) && isValidUser(request.resource.data) && (
+        isAdmin() ||
+        (request.auth.uid == userId && request.resource.data.role == resource.data.role)
+      );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Inventory items
+    match /inventory/{itemId} {
+      allow get, list: if isTeamMember();
+      allow create: if isStaffOrAbove() && isValidId(itemId) && isValidInventory(request.resource.data);
+      allow update: if isStaffOrAbove() && isValidId(itemId) && isValidInventory(request.resource.data);
+      allow delete: if isManagerOrAbove() && isValidId(itemId);
+    }
+
+    // Sales Orders
+    match /orders/{orderId} {
+      allow get, list: if isTeamMember();
+      allow create: if isStaffOrAbove() && isValidId(orderId) && isValidOrder(request.resource.data);
+      allow update: if isStaffOrAbove() && isValidId(orderId) && isValidOrder(request.resource.data);
+      allow delete: if isManagerOrAbove() && isValidId(orderId);
+    }
+
+    // Vendors
+    match /vendors/{vendorId} {
+      allow get, list: if isTeamMember();
+      allow create: if isManagerOrAbove() && isValidId(vendorId) && isValidVendor(request.resource.data);
+      allow update: if isManagerOrAbove() && isValidId(vendorId) && isValidVendor(request.resource.data);
+      allow delete: if isManagerOrAbove() && isValidId(vendorId);
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "MarketPulse - FB Marketplace Inventory & Sales Tracker",
+  "description": "Comprehensive Facebook Marketplace inventory tracking, orders, profit margins, automated CSV imports, shipping & vendor management, and role-based access.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

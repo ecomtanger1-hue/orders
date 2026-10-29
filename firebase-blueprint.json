@@ -1,0 +1,129 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Team member profile and RBAC role assignment",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "manager", "staff", "viewer"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "InventoryItem": {
+      "title": "Inventory Item",
+      "description": "Product listed on or prepared for Facebook Marketplace",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "sku": { "type": "string", "maxLength": 100 },
+        "category": { "type": "string", "maxLength": 100 },
+        "condition": { "type": "string", "enum": ["new", "like_new", "good", "fair"] },
+        "costPrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "stock": { "type": "integer" },
+        "lowStockThreshold": { "type": "integer" },
+        "vendorId": { "type": "string", "maxLength": 128 },
+        "vendorName": { "type": "string", "maxLength": 200 },
+        "listingUrl": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["active", "sold", "draft", "out_of_stock", "reserved", "archived"] },
+        "fulfillmentType": { "type": "string", "enum": ["local", "shipping", "both"] },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "isBundle": { "type": "boolean" },
+        "bundleItems": { "type": "array" },
+        "batches": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["title", "costPrice", "sellingPrice", "stock", "status"]
+    },
+    "Order": {
+      "title": "Sales Order",
+      "description": "Sales record from Facebook Marketplace or local pickup",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string", "maxLength": 128 },
+        "itemTitle": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "quantity": { "type": "integer" },
+        "unitCost": { "type": "number" },
+        "salePrice": { "type": "number" },
+        "shippingCharged": { "type": "number" },
+        "shippingCost": { "type": "number" },
+        "platformFee": { "type": "number" },
+        "totalRevenue": { "type": "number" },
+        "totalCost": { "type": "number" },
+        "netProfit": { "type": "number" },
+        "profitMargin": { "type": "number" },
+        "buyerName": { "type": "string", "maxLength": 150 },
+        "customerPhone": { "type": "string", "maxLength": 50 },
+        "customerAddress": { "type": "string", "maxLength": 300 },
+        "googleMapsUrl": { "type": "string", "maxLength": 500 },
+        "paymentMethod": { "type": "string", "enum": ["fb_pay", "cash", "venmo", "zelle", "paypal", "other"] },
+        "fulfillmentType": { "type": "string", "enum": ["local_pickup", "shipping"] },
+        "carrier": { "type": "string", "maxLength": 50 },
+        "trackingNumber": { "type": "string", "maxLength": 100 },
+        "status": { "type": "string", "enum": ["new", "confirmed", "delivered", "cancelled", "completed", "pending_pickup", "shipped"] },
+        "date": { "type": "string" },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["itemTitle", "quantity", "salePrice", "status", "date"]
+    },
+    "Vendor": {
+      "title": "Vendor Supplier",
+      "description": "Supplier or source of inventory goods",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "contactPerson": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 50 },
+        "website": { "type": "string", "maxLength": 200 },
+        "leadTimeDays": { "type": "integer" },
+        "rating": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["name"]
+    },
+    "AdminDoc": {
+      "title": "Admin Flag",
+      "description": "Document marking a user as an admin in the admins collection",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "assignedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile with RBAC role information"
+    },
+    "/inventory/{itemId}": {
+      "schema": { "$ref": "#/entities/InventoryItem" },
+      "description": "Facebook Marketplace inventory items and stock levels"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Sales orders, shipping costs, and profit calculations"
+    },
+    "/vendors/{vendorId}": {
+      "schema": { "$ref": "#/entities/Vendor" },
+      "description": "Vendor contact info, supplier notes, and lead times"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminDoc" },
+      "description": "Admin authorization markers for security rules verification"
+    }
+  }
+}
